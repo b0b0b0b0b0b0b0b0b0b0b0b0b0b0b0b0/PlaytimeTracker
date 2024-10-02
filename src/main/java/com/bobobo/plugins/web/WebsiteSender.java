@@ -1,38 +1,50 @@
 package com.bobobo.plugins.web;
+
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+
 public class WebsiteSender {
-    public static void sendDataToWebsite(Player player, long playtime, String apiUrl) {
-        long days = playtime / (20 * 60 * 24);
+    private final JavaPlugin plugin;
+
+    public WebsiteSender(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    public void sendDataToWebsite(Player player, long playtime, String apiUrl) {
         try {
-            int responseCode = sendRequest(player, playtime, days, apiUrl);
+            String apiToken = plugin.getConfig().getString("api-token", "default-token");
+            String jsonInputString = String.format("{\"player\":\"%s\",\"playtime\":%d}", player.getName(), playtime);
+            plugin.getLogger().info("Отправляем данные на сайт: " + jsonInputString);
+            int responseCode = sendRequest(jsonInputString, apiUrl, apiToken);
+
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                player.getServer().getLogger().info("Данные отправлены для игрока: " + player.getName());
+                plugin.getLogger().info("Данные успешно отправлены для игрока: " + player.getName());
+            } else if (responseCode == HttpURLConnection.HTTP_FORBIDDEN) { // Отловим ошибку 403
+                plugin.getLogger().warning("Ошибка: неверный API-ключ для игрока: " + player.getName() +
+                        ". Проверьте конфигурацию плагина, убедитесь, что API-ключ настроен правильно и синхронизирован с сервером.");
             } else {
-                player.getServer().getLogger().warning("Ошибка при отправке данных для игрока: " + player.getName());
+                plugin.getLogger().warning("Ошибка при отправке данных для игрока: " + player.getName() + " (Код ответа: " + responseCode + ")");
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    private static int sendRequest(Player player, long playtime, long days, String apiUrl) throws IOException {
+
+    private static int sendRequest(String jsonInputString, String apiUrl, String apiToken) throws IOException {
         URL url = new URL(apiUrl);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json; utf-8");
+        connection.setRequestProperty("Authorization", "Bearer " + apiToken);
 
-        // Формируем данные через объект JSON
-        String jsonInputString = String.format("{\"player\":\"%s\",\"playtime\":%d,\"days\":%d}",
-                player.getName(), playtime, days);
-
-        // Добавляем логирование, чтобы увидеть данные перед отправкой
-        System.out.println("Отправляем JSON: " + jsonInputString);
-
+        // Отправляем данные
         try (OutputStream os = connection.getOutputStream()) {
             byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
             os.write(input, 0, input.length);
@@ -40,6 +52,5 @@ public class WebsiteSender {
 
         return connection.getResponseCode();
     }
-
 
 }
