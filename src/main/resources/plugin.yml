@@ -1,0 +1,6 @@
+name: PlaytimeTracker
+version: '${project.version}'
+main: com.bobobo.plugins.PlaytimeTracker
+api-version: '1.16'
+commands:
+  ptreload:
